@@ -1,0 +1,15 @@
+{
+  "EmbySeriesMerge": {
+    "name": "Emby 同名剧集合并",
+    "description": "合并 Emby 中同名同年、同一媒体身份的多个剧集条目的季集数据，修正跨媒体库连载剧的缺集判定。",
+    "labels": "媒体库,订阅",
+    "version": "1.0.0",
+    "icon": "emby.png",
+    "author": "kyu92",
+    "level": 1,
+    "system_version": ">=3.1.0",
+    "history": {
+      "v1.0.0": "初始版本：合并跨媒体库同名剧集的季集查询结果"
+    }
+  }
+}
