@@ -75,13 +75,16 @@ _EPISODE_RE = re.compile(
     r"|[\[(（_](\d{1,3})(?=[\]）)]|$))",
 )
 
+# 音轨尾部的声道标签（如 " 2.0"、" 5.1"、" 7.1.4"）
+_CHANNEL_TAG_RE = re.compile(r"\s+\d+(?:\.\d+){1,2}$")
+
 
 class SubtitleMetaPatch(_PluginBase):
     """字幕命名补全插件。"""
 
     plugin_name = "字幕命名补全"
     plugin_desc = "整理时让字幕文件名带上与视频一致的色深等编码信息，解决外挂字幕无法自动匹配的问题。"
-    plugin_version = "1.0.0"
+    plugin_version = "1.0.1"
     plugin_author = "kyu92"
     plugin_label = "整理命名"
     plugin_config_prefix = "subtitlemetapatch_"
@@ -267,10 +270,17 @@ class SubtitleMetaPatch(_PluginBase):
                 key for key in TARGET_FIELDS
                 if not str(rename_dict.get(key) or "").strip()
             ]
-            if not missing:
+            # 若 audioCodec 已有值但只是裸编码名（如 flac），仍需探测以便
+            # 在探测到同编码含声道标签时做增强覆盖（如 "FLAC 2.0"）
+            need_audio_enhance = (
+                bool(str(rename_dict.get("audioCodec") or "").strip())
+                and "audioCodec" not in missing
+            )
+            if not missing and not need_audio_enhance:
                 return
         else:
             missing = list(TARGET_FIELDS)
+            need_audio_enhance = False
 
         try:
             fields = self._resolve_media_fields(source_path, source_item)
@@ -285,7 +295,15 @@ class SubtitleMetaPatch(_PluginBase):
             value = fields.get(key)
             if not value:
                 continue
-            if self._overwrite_mode == "fill_missing" and key not in missing:
+            if key not in missing:
+                # fill_missing 模式下对音频编码做同族增强：仅当探测值为同一
+                # 编码且带声道信息时覆盖（flac -> "FLAC 2.0"），避免破坏其他字段
+                if self._overwrite_mode == "fill_missing" and key == "audioCodec":
+                    current = str(rename_dict.get("audioCodec") or "").strip()
+                    if (need_audio_enhance and current
+                            and self._audio_family(current) == self._audio_family(value)
+                            and current != value):
+                        rename_dict[key] = value
                 continue
             rename_dict[key] = value
         logger.info(
@@ -656,3 +674,17 @@ class SubtitleMetaPatch(_PluginBase):
         if tag:
             return f"{label} {tag}"
         return label
+
+    @staticmethod
+    def _audio_family(label: str) -> str:
+        """
+        提取音轨标签的编码家族名（小写、去除声道信息）
+
+        用于判断两个标签是否属于同一编码（如 flac 与 "FLAC 2.0" 同族），
+        从而决定是否允许对已存在的 audioCodec 做声道增强覆盖。
+
+        :param label: 音轨标签，如 flac / "FLAC 2.0"
+        :return: 编码家族名，如 flac
+        """
+        text = _CHANNEL_TAG_RE.sub("", str(label or "").strip()).strip()
+        return text.casefold()
