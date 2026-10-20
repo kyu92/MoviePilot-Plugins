@@ -14,19 +14,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.chain.storage import StorageChain
-from app.core.config import settings
-from app.core.event import eventmanager, Event
-from app.core.meta import MetaBase
-from app.core.metainfo import MetaInfo
-from app.log import logger
 from app.plugins import _PluginBase
-from app.schemas import FileItem
+from app.schemas.event import TransferRenameBuildEventData
+from app.schemas.file import FileItem
 from app.schemas.types import ChainEventType
-
-try:
-    from app.schemas import TransferRenameBuildEventData
-except ImportError:
-    TransferRenameBuildEventData = None
+from app.sdk.config import settings
+from app.sdk.events import Event, eventmanager
+from app.sdk.logging import logger
+from app.sdk.media import MetaBase, MetaInfo
 
 # 字幕文件语言/用途尾缀集合（剥离后用于匹配同名主视频）
 SUBTITLE_STEM_TAGS = {
@@ -84,7 +79,7 @@ class SubtitleMetaPatch(_PluginBase):
 
     plugin_name = "字幕命名补全"
     plugin_desc = "整理时让字幕文件名带上与视频一致的色深等编码信息，解决外挂字幕无法自动匹配的问题。"
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     plugin_author = "kyu92"
     plugin_label = "整理命名"
     plugin_config_prefix = "subtitlemetapatch_"
@@ -246,8 +241,6 @@ class SubtitleMetaPatch(_PluginBase):
     def on_transfer_rename_build(self, event: Event) -> None:
         """响应整理重命名构建事件，为字幕文件补全视频技术参数。"""
         if not self._enabled:
-            return
-        if TransferRenameBuildEventData is None:
             return
         data = event.event_data
         if not isinstance(data, TransferRenameBuildEventData):
